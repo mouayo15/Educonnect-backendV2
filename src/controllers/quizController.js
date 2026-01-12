@@ -1,6 +1,7 @@
 const { query } = require('../config/database');
 const { AppError, catchAsync } = require('../middleware/errorHandler');
 const { submitQuiz, getUserQuizHistory } = require('../services/quizService');
+const logger = require('../utils/logger');
 
 /**
  * Get all quizzes
@@ -8,6 +9,7 @@ const { submitQuiz, getUserQuizHistory } = require('../services/quizService');
 exports.getAllQuizzes = catchAsync(async (req, res) => {
   const { subjectId, difficulty } = req.query;
   const userId = req.user?.id;
+  logger.info(`📋 Fetching all quizzes (subjectId: ${subjectId || 'all'}, difficulty: ${difficulty || 'all'})`);
 
   let queryText = `
     SELECT q.*, s.name as subject_name, s.emoji as subject_emoji,
@@ -41,6 +43,8 @@ exports.getAllQuizzes = catchAsync(async (req, res) => {
 
   const result = await query(queryText, params);
 
+  logger.info(`✅ Quizzes retrieved: ${result.rows.length} quizzes found`);
+
   res.json({
     success: true,
     data: result.rows
@@ -53,6 +57,7 @@ exports.getAllQuizzes = catchAsync(async (req, res) => {
 exports.getQuizById = catchAsync(async (req, res) => {
   const { quizId } = req.params;
   const userId = req.user?.id;
+  logger.info(`❓ Fetching quiz ID ${quizId}`);
 
   let queryText = `
     SELECT q.*, s.name as subject_name, s.emoji as subject_emoji,
@@ -67,8 +72,11 @@ exports.getQuizById = catchAsync(async (req, res) => {
   const result = await query(queryText, params);
 
   if (result.rows.length === 0) {
+    logger.warn(`⚠️ Quiz not found: ID ${quizId}`);
     throw new AppError('Quiz not found', 404);
   }
+
+  logger.info(`✅ Quiz retrieved: ${result.rows[0].title}`);
 
   res.json({
     success: true,

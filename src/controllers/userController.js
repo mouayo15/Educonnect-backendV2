@@ -1,12 +1,14 @@
 const { query } = require('../config/database');
 const { AppError, catchAsync } = require('../middleware/errorHandler');
 const { getUserStats } = require('../services/userService');
+const logger = require('../utils/logger');
 
 /**
  * Get current user profile
  */
 exports.getProfile = catchAsync(async (req, res) => {
   const userId = req.user.id;
+  logger.info(`📄 Fetching user profile for ID ${userId}`);
 
   const result = await query(
     `SELECT id, username, email, avatar, xp, level, streak,
@@ -17,8 +19,11 @@ exports.getProfile = catchAsync(async (req, res) => {
   );
 
   if (result.rows.length === 0) {
+    logger.error(`❌ User profile not found: ID ${userId}`);
     throw new AppError('User not found', 404);
   }
+
+  logger.info(`✅ User profile retrieved: ${result.rows[0].username}`);
 
   res.json({
     success: true,
@@ -32,6 +37,7 @@ exports.getProfile = catchAsync(async (req, res) => {
 exports.updateProfile = catchAsync(async (req, res) => {
   const userId = req.user.id;
   const { username, avatar } = req.body;
+  logger.info(`✏️ User profile update request: ID ${userId}`);
 
   // Check if username is already taken
   if (username) {
@@ -41,6 +47,7 @@ exports.updateProfile = catchAsync(async (req, res) => {
     );
 
     if (existing.rows.length > 0) {
+      logger.warn(`⚠️ Username already taken: ${username}`);
       throw new AppError('Username already taken', 400);
     }
   }
@@ -63,6 +70,7 @@ exports.updateProfile = catchAsync(async (req, res) => {
   }
 
   if (updates.length === 0) {
+    logger.warn(`⚠️ No fields to update for user ${userId}`);
     throw new AppError('No fields to update', 400);
   }
 
@@ -76,6 +84,8 @@ exports.updateProfile = catchAsync(async (req, res) => {
     values
   );
 
+  logger.info(`✅ User profile updated successfully: ID ${userId}`);
+
   res.json({
     success: true,
     data: result.rows[0]
@@ -87,8 +97,11 @@ exports.updateProfile = catchAsync(async (req, res) => {
  */
 exports.getStats = catchAsync(async (req, res) => {
   const userId = req.user.id;
+  logger.info(`📊 Fetching user stats for ID ${userId}`);
 
   const stats = await getUserStats(userId);
+  
+  logger.info(`✅ User stats retrieved: ID ${userId}`);
 
   res.json({
     success: true,
@@ -101,6 +114,7 @@ exports.getStats = catchAsync(async (req, res) => {
  */
 exports.getAchievements = catchAsync(async (req, res) => {
   const userId = req.user.id;
+  logger.info(`🏆 Fetching achievements for user ID ${userId}`);
 
   const result = await query(
     `SELECT a.*, ua.earned_at
@@ -115,6 +129,8 @@ exports.getAchievements = catchAsync(async (req, res) => {
 
   const unlocked = result.rows.filter(a => a.earned_at !== null);
   const locked = result.rows.filter(a => a.earned_at === null);
+
+  logger.info(`✅ Achievements retrieved for user ${userId}: ${unlocked.length} unlocked, ${locked.length} locked`);
 
   res.json({
     success: true,
@@ -133,6 +149,7 @@ exports.getAchievements = catchAsync(async (req, res) => {
 exports.getActivity = catchAsync(async (req, res) => {
   const userId = req.user.id;
   const { limit = 20, offset = 0 } = req.query;
+  logger.info(`📋 Fetching activity history for user ${userId} (limit: ${limit}, offset: ${offset})`);
 
   const result = await query(
     `SELECT * FROM activity_history 
@@ -146,6 +163,8 @@ exports.getActivity = catchAsync(async (req, res) => {
     'SELECT COUNT(*) FROM activity_history WHERE user_id = $1',
     [userId]
   );
+
+  logger.info(`✅ Activity history retrieved for user ${userId}: ${result.rows.length} records`);
 
   res.json({
     success: true,

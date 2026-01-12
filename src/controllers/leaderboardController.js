@@ -1,5 +1,6 @@
 const { query } = require('../config/database');
 const { catchAsync, AppError } = require('../middleware/errorHandler');
+const logger = require('../utils/logger');
 
 /**
  * Get global leaderboard
@@ -7,6 +8,7 @@ const { catchAsync, AppError } = require('../middleware/errorHandler');
 exports.getGlobalLeaderboard = catchAsync(async (req, res) => {
   const { limit = 50, offset = 0 } = req.query;
   const userId = req.user?.id;
+  logger.info(`🏆 Fetching global leaderboard (limit: ${limit}, offset: ${offset})`);
 
   const result = await query(
     `SELECT * FROM global_leaderboard
@@ -32,6 +34,8 @@ exports.getGlobalLeaderboard = catchAsync(async (req, res) => {
     }
   }
 
+  logger.info(`✅ Global leaderboard retrieved: ${result.rows.length} users (User rank: ${userRank || 'N/A'})`);
+
   res.json({
     success: true,
     data: {
@@ -51,6 +55,7 @@ exports.getSubjectLeaderboard = catchAsync(async (req, res) => {
   const { subjectId } = req.params;
   const { limit = 50 } = req.query;
   const userId = req.user?.id;
+  logger.info(`🏆 Fetching subject leaderboard for subject ID ${subjectId} (limit: ${limit})`);
 
   // Verify subject exists and get its key
   const subjectResult = await query(
@@ -59,6 +64,7 @@ exports.getSubjectLeaderboard = catchAsync(async (req, res) => {
   );
 
   if (subjectResult.rows.length === 0) {
+    logger.warn(`⚠️ Subject not found: ID ${subjectId}`);
     throw new AppError('Subject not found', 404);
   }
 
@@ -96,6 +102,8 @@ exports.getSubjectLeaderboard = catchAsync(async (req, res) => {
       userRank = rankResult.rows[0].rank;
     }
   }
+
+  logger.info(`✅ Subject leaderboard retrieved: ${result.rows.length} users in ${subject.name}`);
 
   res.json({
     success: true,

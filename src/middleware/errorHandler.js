@@ -1,6 +1,8 @@
 /**
  * Custom error class
  */
+const logger = require('../utils/logger');
+
 class AppError extends Error {
   constructor(message, statusCode) {
     super(message);
@@ -16,6 +18,12 @@ class AppError extends Error {
 const errorHandler = (err, req, res, next) => {
   err.statusCode = err.statusCode || 500;
   err.message = err.message || 'Internal Server Error';
+
+  // Log error with full details
+  logger.error(
+    `❌ [${req.method}] ${req.originalUrl} - Error: ${err.message} - Status: ${err.statusCode}`,
+    { stack: err.stack, error: err }
+  );
 
   // Development error response (detailed)
   if (process.env.NODE_ENV === 'development') {
@@ -36,7 +44,7 @@ const errorHandler = (err, req, res, next) => {
   }
 
   // Programming or unknown errors: don't leak details
-  console.error('ERROR 💥', err);
+  logger.error('Unhandled Error 💥', { stack: err.stack, error: err });
   return res.status(500).json({
     success: false,
     error: 'Something went wrong'

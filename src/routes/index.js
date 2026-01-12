@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+const logger = require('../utils/logger');
 
 // Import all route modules
 const authRoutes = require('./auth');
@@ -19,6 +20,7 @@ router.use('/leaderboard', leaderboardRoutes);
 
 // Health check
 router.get('/health', (req, res) => {
+  logger.info('✓ Health check endpoint called');
   res.json({
     success: true,
     message: 'EduConnect API is running',

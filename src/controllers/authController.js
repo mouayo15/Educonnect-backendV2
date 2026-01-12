@@ -4,6 +4,7 @@ const crypto = require('crypto');
 const { query, transaction } = require('../config/database');
 const { AppError, catchAsync } = require('../middleware/errorHandler');
 const { updateStreak } = require('../services/userService');
+const logger = require('../utils/logger');
 
 /**
  * Generate JWT tokens
@@ -29,6 +30,7 @@ const generateTokens = (userId) => {
  */
 exports.register = catchAsync(async (req, res) => {
   const { username, email, password, avatar } = req.body;
+  logger.info(`📝 User registration attempt: ${email}`);
 
   // Check if user exists
   const existingUser = await query(
@@ -37,6 +39,7 @@ exports.register = catchAsync(async (req, res) => {
   );
 
   if (existingUser.rows.length > 0) {
+    logger.warn(`⚠️ Registration failed: User already exists - ${email}`);
     throw new AppError('User already exists with this email or username', 400);
   }
 
@@ -52,6 +55,7 @@ exports.register = catchAsync(async (req, res) => {
   );
 
   const user = result.rows[0];
+  logger.info(`✅ User registered successfully: ${email} (ID: ${user.id})`);
 
   // Generate tokens
   const { accessToken, refreshToken } = generateTokens(user.id);
@@ -76,6 +80,7 @@ exports.register = catchAsync(async (req, res) => {
       'INSERT INTO user_achievements (user_id, achievement_id) VALUES ($1, $2)',
       [user.id, achievementResult.rows[0].id]
     );
+    logger.info(`🏆 Achievement awarded to user ${user.id}: first_login`);
   }
 
   res.status(201).json({
@@ -101,6 +106,7 @@ exports.register = catchAsync(async (req, res) => {
  */
 exports.login = catchAsync(async (req, res) => {
   const { email, password } = req.body;
+  logger.info(`🔐 Login attempt: ${email}`);
 
   // Get user
   const result = await query(
@@ -111,6 +117,7 @@ exports.login = catchAsync(async (req, res) => {
   );
 
   if (result.rows.length === 0) {
+    logger.warn(`⚠️ Login failed: User not found - ${email}`);
     throw new AppError('Invalid email or password', 401);
   }
 
@@ -118,6 +125,7 @@ exports.login = catchAsync(async (req, res) => {
 
   // Check if account is locked
   if (user.locked_until && new Date(user.locked_until) > new Date()) {
+    logger.warn(`⚠️ Login blocked: Account locked for user ${email}`);
     throw new AppError(
       `Account is locked until ${user.locked_until}. Too many failed login attempts.`,
       403
@@ -128,6 +136,7 @@ exports.login = catchAsync(async (req, res) => {
   const isPasswordValid = await bcrypt.compare(password, user.password_hash);
 
   if (!isPasswordValid) {
+    logger.warn(`⚠️ Login failed: Invalid password for ${email}`);
     // Increment failed attempts
     const failedAttempts = user.failed_login_attempts + 1;
     let lockedUntil = null;
@@ -136,6 +145,7 @@ exports.login = catchAsync(async (req, res) => {
     if (failedAttempts >= 5) {
       lockedUntil = new Date();
       lockedUntil.setMinutes(lockedUntil.getMinutes() + 15); // Lock for 15 minutes
+      logger.warn(`🔒 Account locked: ${email} (Failed attempts: ${failedAttempts})`);
     }
 
     await query(
@@ -167,6 +177,8 @@ exports.login = catchAsync(async (req, res) => {
     [user.id, refreshToken, tokenExpiry]
   );
 
+  logger.info(`✅ User logged in successfully: ${email} (ID: ${user.id})`);
+
   res.json({
     success: true,
     data: {
@@ -193,6 +205,7 @@ exports.refreshToken = catchAsync(async (req, res) => {
   const { refreshToken } = req.body;
 
   if (!refreshToken) {
+    logger.warn('⚠️ Token refresh failed: No refresh token provided');
     return res.status(401).json({
       success: false,
       error: 'Refresh token required'
@@ -210,6 +223,7 @@ exports.refreshToken = catchAsync(async (req, res) => {
     );
 
     if (result.rows.length === 0) {
+      logger.warn(`⚠️ Token refresh failed: Invalid or expired token for user ${decoded.userId}`);
       return res.status(401).json({
         success: false,
         error: 'Invalid or expired refresh token'
@@ -223,12 +237,15 @@ exports.refreshToken = catchAsync(async (req, res) => {
       { expiresIn: process.env.JWT_EXPIRES_IN || '15m' }
     );
 
+    logger.info(`✅ Token refreshed successfully for user ${decoded.userId}`);
+
     res.json({
       success: true,
       data: { accessToken }
     });
   } catch (error) {
     if (error.name === 'JsonWebTokenError' || error.name === 'TokenExpiredError') {
+      logger.warn(`⚠️ Token refresh failed: Invalid JWT - ${error.message}`);
       return res.status(401).json({
         success: false,
         error: 'Invalid or expired refresh token'
@@ -242,12 +259,15 @@ exports.refreshToken = catchAsync(async (req, res) => {
  * Logout user
  */
 exports.logout = catchAsync(async (req, res) => {
+  const userId = req.user.id;
   const { refreshToken } = req.body;
 
   if (refreshToken) {
     // Delete refresh token from database
     await query('DELETE FROM refresh_tokens WHERE token = $1', [refreshToken]);
   }
+
+  logger.info(`✅ User logged out: ID ${userId}`);
 
   res.json({
     success: true,
@@ -261,6 +281,7 @@ exports.logout = catchAsync(async (req, res) => {
 exports.changePassword = catchAsync(async (req, res) => {
   const { currentPassword, newPassword } = req.body;
   const userId = req.user.id;
+  logger.info(`🔑 Password change requested by user ${userId}`);
 
   // Get current password hash
   const result = await query(
@@ -269,6 +290,7 @@ exports.changePassword = catchAsync(async (req, res) => {
   );
 
   if (result.rows.length === 0) {
+    logger.error(`❌ Password change failed: User ${userId} not found`);
     throw new AppError('User not found', 404);
   }
 
@@ -279,6 +301,7 @@ exports.changePassword = catchAsync(async (req, res) => {
   );
 
   if (!isPasswordValid) {
+    logger.warn(`⚠️ Password change failed: Invalid current password for user ${userId}`);
     throw new AppError('Current password is incorrect', 401);
   }
 
@@ -291,6 +314,8 @@ exports.changePassword = catchAsync(async (req, res) => {
     [newPasswordHash, userId]
   );
 
+  logger.info(`✅ Password changed successfully for user ${userId}`);
+
   res.json({
     success: true,
     message: 'Password changed successfully'
@@ -302,6 +327,7 @@ exports.changePassword = catchAsync(async (req, res) => {
  */
 exports.getCurrentUser = catchAsync(async (req, res) => {
   const userId = req.user.id;
+  logger.info(`📄 Fetching user profile for ID ${userId}`);
 
   // Get user with stats
   const result = await query(
@@ -335,8 +361,11 @@ exports.getCurrentUser = catchAsync(async (req, res) => {
   );
 
   if (result.rows.length === 0) {
+    logger.error(`❌ User profile fetch failed: User ${userId} not found`);
     throw new AppError('User not found', 404);
   }
+
+  logger.info(`✅ User profile retrieved successfully: ${result.rows[0].username}`);
 
   res.json({
     success: true,

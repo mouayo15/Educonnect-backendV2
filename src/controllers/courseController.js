@@ -1,13 +1,18 @@
 const { query } = require('../config/database');
 const { AppError, catchAsync } = require('../middleware/errorHandler');
+const logger = require('../utils/logger');
 
 /**
  * Get all subjects
  */
 exports.getAllSubjects = catchAsync(async (req, res) => {
+  logger.info('📚 Fetching all subjects');
+  
   const result = await query(
     `SELECT * FROM subjects ORDER BY order_index ASC`
   );
+
+  logger.info(`✅ All subjects retrieved: ${result.rows.length} subjects found`);
 
   res.json({
     success: true,
@@ -20,6 +25,7 @@ exports.getAllSubjects = catchAsync(async (req, res) => {
  */
 exports.getSubjectById = catchAsync(async (req, res) => {
   const { subjectId } = req.params;
+  logger.info(`📚 Fetching subject ID ${subjectId}`);
 
   const result = await query(
     'SELECT * FROM subjects WHERE id = $1',
@@ -27,8 +33,11 @@ exports.getSubjectById = catchAsync(async (req, res) => {
   );
 
   if (result.rows.length === 0) {
+    logger.warn(`⚠️ Subject not found: ID ${subjectId}`);
     throw new AppError('Subject not found', 404);
   }
+
+  logger.info(`✅ Subject retrieved: ${result.rows[0].name}`);
 
   res.json({
     success: true,
@@ -41,6 +50,7 @@ exports.getSubjectById = catchAsync(async (req, res) => {
  */
 exports.getChaptersBySubject = catchAsync(async (req, res) => {
   const { subjectId } = req.params;
+  logger.info(`📖 Fetching chapters for subject ID ${subjectId}`);
 
   // Verify subject exists
   const subjectResult = await query(
@@ -49,6 +59,7 @@ exports.getChaptersBySubject = catchAsync(async (req, res) => {
   );
 
   if (subjectResult.rows.length === 0) {
+    logger.warn(`⚠️ Subject not found: ID ${subjectId}`);
     throw new AppError('Subject not found', 404);
   }
 
@@ -60,6 +71,8 @@ exports.getChaptersBySubject = catchAsync(async (req, res) => {
      ORDER BY c.order_index ASC`,
     [subjectId]
   );
+
+  logger.info(`✅ Chapters retrieved for subject ${subjectId}: ${result.rows.length} chapters`);
 
   res.json({
     success: true,

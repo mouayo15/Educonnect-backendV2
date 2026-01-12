@@ -1,6 +1,7 @@
 const { query, transaction } = require('../config/database');
 const { AppError, catchAsync } = require('../middleware/errorHandler');
 const { addXp } = require('../services/userService');
+const logger = require('../utils/logger');
 
 /**
  * Get all exercises
@@ -8,6 +9,7 @@ const { addXp } = require('../services/userService');
 exports.getAllExercises = catchAsync(async (req, res) => {
   const { subjectId, difficulty } = req.query;
   const userId = req.user?.id;
+  logger.info(`💪 Fetching all exercises (subjectId: ${subjectId || 'all'}, difficulty: ${difficulty || 'all'})`);
 
   let queryText = `
     SELECT e.*, s.name as subject_name, s.emoji as subject_emoji,
@@ -41,6 +43,8 @@ exports.getAllExercises = catchAsync(async (req, res) => {
 
   const result = await query(queryText, params);
 
+  logger.info(`✅ Exercises retrieved: ${result.rows.length} exercises found`);
+
   res.json({
     success: true,
     data: result.rows
@@ -53,6 +57,7 @@ exports.getAllExercises = catchAsync(async (req, res) => {
 exports.getExerciseById = catchAsync(async (req, res) => {
   const { exerciseId } = req.params;
   const userId = req.user?.id;
+  logger.info(`💪 Fetching exercise ID ${exerciseId}`);
 
   let queryText = `
     SELECT e.*, s.name as subject_name, s.emoji as subject_emoji,
@@ -67,8 +72,11 @@ exports.getExerciseById = catchAsync(async (req, res) => {
   const result = await query(queryText, params);
 
   if (result.rows.length === 0) {
+    logger.warn(`⚠️ Exercise not found: ID ${exerciseId}`);
     throw new AppError('Exercise not found', 404);
   }
+
+  logger.info(`✅ Exercise retrieved: ${result.rows[0].title}`);
 
   res.json({
     success: true,

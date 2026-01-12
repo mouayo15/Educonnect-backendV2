@@ -8,6 +8,8 @@ require('dotenv').config();
 const routes = require('./routes');
 const { errorHandler, notFound } = require('./middleware/errorHandler');
 const { generalLimiter } = require('./middleware/rateLimiter');
+const requestLogger = require('./middleware/requestLogger');
+const logger = require('./utils/logger');
 
 // Initialize express app
 const app = express();
@@ -40,7 +42,10 @@ app.use(compression());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Logging
+// Custom request logger
+app.use(requestLogger);
+
+// Logging with Morgan
 if (process.env.NODE_ENV === 'development') {
   app.use(morgan('dev'));
 } else {
@@ -74,7 +79,7 @@ const PORT = process.env.PORT || 3000;
 
 if (process.env.NODE_ENV !== 'test') {
   const server = app.listen(PORT, () => {
-    console.log(`
+    logger.info(`
 ╔═══════════════════════════════════════╗
 ║                                       ║
 ║     🎓 EduConnect API Server 🎓      ║
@@ -92,17 +97,17 @@ if (process.env.NODE_ENV !== 'test') {
 
   // Graceful shutdown
   process.on('SIGTERM', () => {
-    console.log('SIGTERM signal received: closing HTTP server');
+    logger.info('SIGTERM signal received: closing HTTP server');
     server.close(() => {
-      console.log('HTTP server closed');
+      logger.info('HTTP server closed');
       process.exit(0);
     });
   });
 
   process.on('SIGINT', () => {
-    console.log('\nSIGINT signal received: closing HTTP server');
+    logger.info('SIGINT signal received: closing HTTP server');
     server.close(() => {
-      console.log('HTTP server closed');
+      logger.info('HTTP server closed');
       process.exit(0);
     });
   });
