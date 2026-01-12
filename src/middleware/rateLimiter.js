@@ -1,7 +1,7 @@
 const rateLimit = require('express-rate-limit');
 
-// Skip rate limiting in test environment
-const skipRateLimiting = process.env.NODE_ENV === 'test';
+// Skip rate limiting in test environment or when explicitly disabled via env
+const skipRateLimiting = process.env.NODE_ENV === 'test' || process.env.RATE_LIMIT_DISABLED === 'true';
 
 /**
  * General API rate limiter

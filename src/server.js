@@ -14,9 +14,25 @@ const app = express();
 
 // Security middleware
 app.use(helmet());
+// CORS: allow frontend dev origins and any configured origin in env
+const allowedOrigins = [
+  'http://localhost:5173',
+  'http://localhost:3000'
+];
+if (process.env.CORS_ORIGIN) allowedOrigins.push(process.env.CORS_ORIGIN);
+
 app.use(cors({
-  origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
-  credentials: true
+  origin: (origin, callback) => {
+    // Allow requests with no origin (e.g., curl, server-to-server)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes(origin)) return callback(null, true);
+    // In development, allow any origin for convenience
+    if ((process.env.NODE_ENV || 'development') === 'development') return callback(null, true);
+    callback(new Error('CORS policy: origin not allowed'));
+  },
+  credentials: true,
+  methods: ['GET','HEAD','PUT','PATCH','POST','DELETE','OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Cache-Control', 'X-Requested-With', 'Accept']
 }));
 
 // General middleware
