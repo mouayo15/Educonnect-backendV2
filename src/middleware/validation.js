@@ -155,8 +155,8 @@ const submitExerciseValidation = [
  */
 const completeLessonValidation = [
   param('lessonId')
-    .isUUID()
-    .withMessage('Invalid lesson ID'),
+    .isInt({ min: 1 })
+    .withMessage('Invalid lesson ID, must be a positive integer'),
   
   body('timeSpent')
     .isInt({ min: 1 })
